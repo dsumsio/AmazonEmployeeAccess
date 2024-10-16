@@ -1,0 +1,216 @@
+
+R version 4.3.3 (2024-02-29) -- "Angel Food Cake"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(vroom)
+> library(tidymodels)
+── Attaching packages ────────────────────────────────────── tidymodels 1.2.0 ──
+✔ broom        1.0.7     ✔ recipes      1.1.0
+✔ dials        1.3.0     ✔ rsample      1.2.1
+✔ dplyr        1.1.4     ✔ tibble       3.2.1
+✔ ggplot2      3.5.1     ✔ tidyr        1.3.1
+✔ infer        1.0.7     ✔ tune         1.2.1
+✔ modeldata    1.4.0     ✔ workflows    1.1.4
+✔ parsnip      1.2.1     ✔ workflowsets 1.1.0
+✔ purrr        1.0.2     ✔ yardstick    1.3.1
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()  masks scales::discard()
+✖ dplyr::filter()   masks stats::filter()
+✖ dplyr::lag()      masks stats::lag()
+✖ yardstick::spec() masks vroom::spec()
+✖ recipes::step()   masks stats::step()
+• Learn how to get started at https://www.tidymodels.org/start/
+> library(embed)
+> library(tidyverse)
+── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ forcats   1.0.0     ✔ readr     2.1.5
+✔ lubridate 1.9.3     ✔ stringr   1.5.1
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ readr::col_character()   masks vroom::col_character()
+✖ readr::col_date()        masks vroom::col_date()
+✖ readr::col_datetime()    masks vroom::col_datetime()
+✖ readr::col_double()      masks vroom::col_double()
+✖ readr::col_factor()      masks scales::col_factor(), vroom::col_factor()
+✖ readr::col_guess()       masks vroom::col_guess()
+✖ readr::col_integer()     masks vroom::col_integer()
+✖ readr::col_logical()     masks vroom::col_logical()
+✖ readr::col_number()      masks vroom::col_number()
+✖ readr::col_skip()        masks vroom::col_skip()
+✖ readr::col_time()        masks vroom::col_time()
+✖ readr::cols()            masks vroom::cols()
+✖ readr::date_names_lang() masks vroom::date_names_lang()
+✖ readr::default_locale()  masks vroom::default_locale()
+✖ purrr::discard()         masks scales::discard()
+✖ dplyr::filter()          masks stats::filter()
+✖ stringr::fixed()         masks recipes::fixed()
+✖ readr::fwf_cols()        masks vroom::fwf_cols()
+✖ readr::fwf_empty()       masks vroom::fwf_empty()
+✖ readr::fwf_positions()   masks vroom::fwf_positions()
+✖ readr::fwf_widths()      masks vroom::fwf_widths()
+✖ dplyr::lag()             masks stats::lag()
+✖ readr::locale()          masks vroom::locale()
+✖ readr::output_column()   masks vroom::output_column()
+✖ readr::problems()        masks vroom::problems()
+✖ readr::spec()            masks yardstick::spec(), vroom::spec()
+ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+> 
+> 
+> train_data = vroom('train.csv')
+Rows: 32769 Columns: 10
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+dbl (10): ACTION, RESOURCE, MGR_ID, ROLE_ROLLUP_1, ROLE_ROLLUP_2, ROLE_DEPTN...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> test_data = vroom('test.csv')
+Rows: 58921 Columns: 10
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+dbl (10): id, RESOURCE, MGR_ID, ROLE_ROLLUP_1, ROLE_ROLLUP_2, ROLE_DEPTNAME,...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> 
+> train_data$ACTION = as.factor(train_data$ACTION)
+> 
+> 
+> lr_recipe <- recipe(ACTION ~ ., data=train_data) %>% 
++   step_mutate_at(all_numeric_predictors(), fn = factor) %>% # turn all numeric features into factors
++   step_other(all_nominal_predictors(), threshold = .05) %>% # combines categorical values that occur
++   step_dummy(all_nominal_predictors()) # %>% # dummy variable encoding
+>   # step_lencode_mixed(vars_I_want_to_target_encode, outcome = vars(target_var)) #target encoding (must
+> # also step_lencode_glm() and step_lencode_bayes()
+> 
+> ## apply the recipe to your data
+> prep <- prep(lr_recipe)
+> baked <- bake(prep, new_data = train_data)
+> 
+> ## Model
+> logregmodel <- logistic_reg() %>%
++   set_engine('glm')
+> 
+> ## Workflow
+> logregwrkflow <- workflow() %>%
++   add_recipe(lr_recipe) %>%
++   add_model(logregmodel) %>%
++   fit(data=train_data)
+> 
+> ## Make predictions
+> amazon_preds <- predict(logregwrkflow, 
++                         new_data = test_data,
++                         type = 'prob')
+> 
+> ## Format the Predictions for Submission to Kaggle
+> kaggle_submission <-  amazon_preds %>%
++   bind_cols(., test_data) %>% #Bind predictions with test data
++   select(id, .pred_1) %>% #Just keep datetime and prediction variables
++   rename(ACTION=.pred_1) #rename pred to count (for submission to Kaggle)
+>   
+> 
+> # Make File
+> vroom_write(x=kaggle_submission, file="./lr_server.csv", delim=",")
+> 
+> 
+> 
+> 
+> ########################## Penalized Log Reg #######################
+> library(tidymodels)
+> library(tidyverse)
+> library(vroom)
+> library(embed)
+> 
+> 
+> train_data = vroom('train.csv')
+Rows: 32769 Columns: 10
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+dbl (10): ACTION, RESOURCE, MGR_ID, ROLE_ROLLUP_1, ROLE_ROLLUP_2, ROLE_DEPTN...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> test_data = vroom('test.csv')
+Rows: 58921 Columns: 10
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+dbl (10): id, RESOURCE, MGR_ID, ROLE_ROLLUP_1, ROLE_ROLLUP_2, ROLE_DEPTNAME,...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> 
+> train_data$ACTION = as.factor(train_data$ACTION)
+> 
+> 
+> lr_recipe <- recipe(ACTION ~ ., data=train_data) %>% 
++   step_mutate_at(all_numeric_predictors(), fn = factor) %>% # turn all numeric features into factors
++   step_other(all_nominal_predictors(), threshold = .05) %>% # combines categorical values that occur
++   #step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) %>%
++   step_dummy(all_nominal_predictors()) %>%
++   step_normalize(all_numeric_predictors())
+> 
+> 
+> my_mod <- logistic_reg(mixture = tune(), penalty = tune()) %>%
++   set_engine('glmnet')
+> 
+> amazon_workflow <- workflow() %>%
++   add_recipe(lr_recipe) %>%
++   add_model(my_mod)
+> 
+> ## Grid of values to tune
+> tuning_grid <- grid_regular(penalty(),
++                             mixture(),
++                             levels = 5)
+> 
+> ## Split data for CV
+> folds <- vfold_cv(train_data, v = 5, repeats = 1)
+> 
+> ## Run the CV
+> CV_results <- amazon_workflow %>%
++   tune_grid(resamples = folds,
++             grid = tuning_grid)
+> 
+> ## Find best tuning params
+> bestTune <- CV_results %>%
++   select_best(metric = 'roc_auc')
+> 
+> ## Findlize the workflow & fit
+> final_wf <- amazon_workflow %>%
++   finalize_workflow(bestTune) %>%
++   fit(data = train_data)
+> 
+> ## Predict
+> amazon_preds <- final_wf %>%
++   predict(new_data = test_data, type = 'prob')
+> 
+> ## Format the Predictions for Submission to Kaggle
+> kaggle_submission <-  amazon_preds %>%
++   bind_cols(., test_data) %>% #Bind predictions with test data
++   select(id, .pred_1) %>% #Just keep datetime and prediction variables
++   rename(ACTION=.pred_1) #rename pred to count (for submission to Kaggle)
+> 
+> 
+> 
+> # Make File
+> vroom_write(x=kaggle_submission, file="./plr_server.csv", delim=",")
+> 
+> 
+> 
+> 
+> proc.time()
+   user  system elapsed 
+ 32.893   1.299  33.838 
