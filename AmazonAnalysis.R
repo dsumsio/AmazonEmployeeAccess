@@ -3,9 +3,10 @@ library(tidymodels)
 library(embed)
 library(tidyverse)
 library(doParallel)
+library(themis)
 
 parallel::detectCores() #How many cores do I have?3
-cl <- makePSOCKcluster(30)
+cl <- makePSOCKcluster(6)
 registerDoParallel(cl)
 
 
@@ -17,10 +18,13 @@ train_data$ACTION = as.factor(train_data$ACTION)
 
 lr_recipe <- recipe(ACTION ~ ., data=train_data) %>% 
   step_mutate_at(all_numeric_predictors(), fn = factor) %>% # turn all numeric features into factors
-  step_other(all_nominal_predictors(), threshold = .05) %>% # combines categorical values that occur
-  step_dummy(all_nominal_predictors()) # %>% # dummy variable encoding
-  # step_lencode_mixed(vars_I_want_to_target_encode, outcome = vars(target_var)) #target encoding (must
-# also step_lencode_glm() and step_lencode_bayes()
+  #step_other(all_nominal_predictors(), threshold = .01) %>% # combines categorical values that occur
+  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) %>%
+  #step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_rm(ROLE_CODE) %>%
+  step_pca(all_predictors(), threshold=0.85) %>%
+  step_smote(all_outcomes(), neighbors=5)
 
 ## apply the recipe to your data
 prep <- prep(lr_recipe)
@@ -49,7 +53,7 @@ kaggle_submission <-  amazon_preds %>%
   
 
 # Make File
-vroom_write(x=kaggle_submission, file="./lr_server.csv", delim=",")
+vroom_write(x=kaggle_submission, file="./lr_smote.csv", delim=",")
 
 
 
@@ -69,10 +73,13 @@ train_data$ACTION = as.factor(train_data$ACTION)
 
 lr_recipe <- recipe(ACTION ~ ., data=train_data) %>% 
   step_mutate_at(all_numeric_predictors(), fn = factor) %>% # turn all numeric features into factors
-  step_other(all_nominal_predictors(), threshold = .05) %>% # combines categorical values that occur
-  #step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_numeric_predictors())
+  #step_other(all_nominal_predictors(), threshold = .01) %>% # combines categorical values that occur
+  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) %>%
+  #step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_rm(ROLE_CODE) %>%
+  step_pca(all_predictors(), threshold=0.85) %>%
+  step_smote(all_outcomes(), neighbors=5)
 
 
 my_mod <- logistic_reg(mixture = tune(), penalty = tune()) %>%
@@ -114,12 +121,10 @@ kaggle_submission <-  amazon_preds %>%
   select(id, .pred_1) %>% #Just keep datetime and prediction variables
   rename(ACTION=.pred_1) #rename pred to count (for submission to Kaggle)
 
-
-
 # Make File
-vroom_write(x=kaggle_submission, file="./plr_server.csv", delim=",")
+vroom_write(x=kaggle_submission, file="./plr_smote.csv", delim=",")
 
-stopCluster()
+stopCluster(cl)
 
 
 
